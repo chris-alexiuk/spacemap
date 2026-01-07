@@ -99,30 +99,57 @@ impl TerminalRenderer {
     fn print_bucket(&self, bucket: &Bucket, _total_bytes: u64, label_width: usize, size_width: usize) {
         let size_str = format_size(bucket.bytes, BINARY);
         let percent_str = format!("{:>6.1}%", bucket.percent);
-        let bar = self.create_bar(bucket.percent, 30);
 
-        let label = if self.use_color {
-            if bucket.percent > 20.0 {
-                bucket.label.red().bold().to_string()
-            } else if bucket.percent > 10.0 {
-                bucket.label.yellow().to_string()
-            } else {
-                bucket.label.normal().to_string()
-            }
-        } else {
-            bucket.label.clone()
-        };
-
-        println!(
-            "{:<width$}  {:>size_width$}  {}  {:>10}  {}",
-            label,
-            self.colorize(&size_str, "green", false),
-            self.colorize(&percent_str, "cyan", false),
+        // Format everything WITHOUT colors first to get proper alignment
+        let formatted = format!(
+            "{:<label_width$}  {:>size_width$}  {:>7}  {:>10}  ",
+            bucket.label,
+            size_str,
+            percent_str,
             bucket.file_count,
-            bar,
-            width = label_width,
+            label_width = label_width,
             size_width = size_width
         );
+
+        // Now apply colors to the formatted line
+        if self.use_color {
+            // Split the formatted line into parts to colorize individually
+            let parts: Vec<&str> = formatted.split("  ").collect();
+
+            // Colorize label based on percentage
+            let colored_label = if bucket.percent > 20.0 {
+                parts[0].red().bold().to_string()
+            } else if bucket.percent > 10.0 {
+                parts[0].yellow().to_string()
+            } else {
+                parts[0].to_string()
+            };
+
+            // Colorize size (green)
+            let colored_size = parts[1].green().to_string();
+
+            // Colorize percent (cyan)
+            let colored_percent = parts[2].cyan().to_string();
+
+            // File count stays uncolored
+            let file_count = parts[3];
+
+            // Create and colorize bar
+            let bar = self.create_bar(bucket.percent, 30);
+
+            println!("{}  {}  {}  {}  {}",
+                colored_label,
+                colored_size,
+                colored_percent,
+                file_count,
+                bar
+            );
+        } else {
+            // No colors - just print formatted line with bar
+            let bar = self.create_bar(bucket.percent, 30);
+            print!("{}", formatted);
+            println!("{}", bar);
+        }
     }
 
     fn create_bar(&self, percent: f64, max_width: usize) -> String {
