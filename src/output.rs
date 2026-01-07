@@ -96,40 +96,31 @@ impl TerminalRenderer {
         let files_w = 10;
         let bar_w = 20;
 
-        // Header
-        println!(
+        // Header - format as single string to preserve spacing
+        let header = format!(
             "  {:<name_w$}{:>size_w$}{:>pct_w$}{:>files_w$}  {}",
-            self.style("CATEGORY", "bright_black", true),
-            self.style("SIZE", "bright_black", true),
-            self.style("PCT", "bright_black", true),
-            self.style("FILES", "bright_black", true),
-            self.style("DISTRIBUTION", "bright_black", true),
+            "CATEGORY",
+            "SIZE",
+            "PCT",
+            "FILES",
+            "DISTRIBUTION",
             name_w = name_w,
             size_w = size_w,
             pct_w = pct_w,
             files_w = files_w,
         );
+        println!("{}", self.style(&header, "white", true));
 
         // Separator
-        println!(
-            "  {}",
-            self.style(
-                &format!(
-                    "{:<name_w$}{:>size_w$}{:>pct_w$}{:>files_w$}  {}",
-                    "─".repeat(name_w - 2),
-                    "─".repeat(size_w - 2),
-                    "─".repeat(pct_w - 2),
-                    "─".repeat(files_w - 2),
-                    "─".repeat(bar_w),
-                    name_w = name_w,
-                    size_w = size_w,
-                    pct_w = pct_w,
-                    files_w = files_w,
-                ),
-                "bright_black",
-                false
-            )
+        let sep = format!(
+            "  {}{}{}{}  {}",
+            "─".repeat(name_w),
+            "─".repeat(size_w),
+            "─".repeat(pct_w),
+            "─".repeat(files_w),
+            "─".repeat(bar_w),
         );
+        println!("{}", self.style(&sep, "bright_black", false));
 
         // Rows
         for bucket in buckets {
@@ -140,13 +131,11 @@ impl TerminalRenderer {
             let (name_color, bold) = if bucket.percent > 50.0 {
                 ("red", true)
             } else if bucket.percent > 20.0 {
-                ("red", false)
+                ("yellow", true)
             } else if bucket.percent > 10.0 {
                 ("yellow", false)
-            } else if bucket.percent > 5.0 {
-                ("white", false)
             } else {
-                ("bright_black", false)
+                ("white", false)
             };
 
             // Build the bar
