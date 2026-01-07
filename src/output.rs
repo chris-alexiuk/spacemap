@@ -56,17 +56,17 @@ impl TerminalRenderer {
 
             println!(
                 "  {}  {} {} {} ({:.1}% used)",
-                self.style("DISK", "bright_black", false),
-                self.style(&format_size(disk.used_space, BINARY), "yellow", false),
-                self.style("/", "bright_black", false),
+                self.style("DISK", "blue", true),
+                self.style(&format_size(disk.used_space, BINARY), "yellow", true),
+                self.style("/", "white", false),
                 self.style(&format_size(disk.total_space, BINARY), "white", false),
                 disk.used_percent
             );
 
             println!(
                 "  {}  {} ({:.2}% of disk)",
-                self.style("SCAN", "bright_black", false),
-                self.style(&format_size(results.totals.total_bytes, BINARY), "green", true),
+                self.style("SCAN", "green", true),
+                self.style(&format_size(results.totals.total_bytes, BINARY), "green", false),
                 scan_percent
             );
         }
@@ -74,11 +74,11 @@ impl TerminalRenderer {
         // Stats row
         println!(
             "  {}  {}    {}  {}    {}  {}",
-            self.style("MODE", "bright_black", false),
+            self.style("MODE", "magenta", true),
             self.style(&results.mode, "magenta", false),
-            self.style("FILES", "bright_black", false),
+            self.style("FILES", "cyan", true),
             self.style(&format!("{}", results.totals.file_count), "cyan", false),
-            self.style("DIRS", "bright_black", false),
+            self.style("DIRS", "cyan", true),
             self.style(&format!("{}", results.totals.dir_count), "cyan", false),
         );
     }
@@ -151,9 +151,9 @@ impl TerminalRenderer {
                 println!(
                     "  {}{}{}{}  {}",
                     self.style(&name_col, name_color, bold),
-                    self.style(&size_col, "green", false),
-                    self.style(&pct_col, "cyan", false),
-                    self.style(&files_col, "blue", false),
+                    self.style(&size_col, "green", true),
+                    self.style(&pct_col, "magenta", false),
+                    self.style(&files_col, "cyan", false),
                     bar
                 );
             } else {
