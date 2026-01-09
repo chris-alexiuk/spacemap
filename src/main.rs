@@ -151,8 +151,8 @@ fn main() {
         None
     };
 
-    // Progress indicator: disabled if --quiet or --json output
-    let show_progress = !cli.quiet && !cli.should_output_json();
+    // Progress indicator: only enabled if --progress flag is used (and not JSON output)
+    let show_progress = cli.progress && !cli.should_output_json();
     let progress = ScanProgress::new(show_progress);
 
     // Create checkpoint if requested

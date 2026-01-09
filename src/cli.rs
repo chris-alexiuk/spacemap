@@ -53,9 +53,9 @@ pub struct Cli {
     #[arg(long, value_name = "SPEC")]
     pub age_buckets: Option<String>,
 
-    /// Disable progress indicator
+    /// Show progress indicator during scan
     #[arg(long)]
-    pub quiet: bool,
+    pub progress: bool,
 
     /// Enable parallel directory scanning for faster performance
     #[arg(long)]
