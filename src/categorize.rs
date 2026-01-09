@@ -1,6 +1,5 @@
-use crate::types::{Bucket, FileMetadata};
+use crate::types::FileMetadata;
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 pub trait Categorizer {
@@ -175,39 +174,3 @@ impl Categorizer for AgeCategorizer {
     }
 }
 
-pub fn aggregate_by_category<C: Categorizer>(
-    categorizer: &C,
-    files: Vec<FileMetadata>,
-    total_bytes: u64,
-) -> Vec<Bucket> {
-    let mut category_map: HashMap<String, (u64, u64)> = HashMap::new();
-
-    for file in files {
-        let category = categorizer.categorize(&file).into_owned();
-        let entry = category_map.entry(category).or_insert((0, 0));
-        entry.0 += file.size;
-        entry.1 += 1;
-    }
-
-    let mut buckets: Vec<Bucket> = category_map
-        .into_iter()
-        .map(|(key, (bytes, count))| {
-            let percent = if total_bytes > 0 {
-                (bytes as f64 / total_bytes as f64) * 100.0
-            } else {
-                0.0
-            };
-
-            Bucket {
-                label: categorizer.get_label(&key),
-                key,
-                bytes,
-                percent,
-                file_count: count,
-            }
-        })
-        .collect();
-
-    buckets.sort_by(|a, b| b.bytes.cmp(&a.bytes));
-    buckets
-}

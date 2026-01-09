@@ -1,6 +1,5 @@
 use crate::types::{FileMetadata, Warning};
-use std::collections::{BinaryHeap, HashMap};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
 
 #[derive(Debug)]
@@ -9,24 +8,6 @@ pub struct ScanStats {
     pub file_count: u64,
     pub dir_count: u64,
     pub warnings: Vec<Warning>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-struct FileWithSize {
-    path: PathBuf,
-    size: u64,
-}
-
-impl Ord for FileWithSize {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.size.cmp(&self.size)
-    }
-}
-
-impl PartialOrd for FileWithSize {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
 }
 
 pub struct Scanner {
@@ -137,43 +118,5 @@ impl Scanner {
         }
 
         Ok(())
-    }
-
-    pub fn collect_top_files(&self, path: &Path, n: usize) -> Vec<(PathBuf, u64)> {
-        let mut heap = BinaryHeap::new();
-
-        self.scan(path, |meta| {
-            heap.push(FileWithSize {
-                path: meta.path.clone(),
-                size: meta.size,
-            });
-        });
-
-        heap.into_sorted_vec()
-            .into_iter()
-            .take(n)
-            .map(|f| (f.path, f.size))
-            .collect()
-    }
-
-    pub fn collect_top_dirs(&self, path: &Path, n: usize) -> Vec<(PathBuf, u64)> {
-        let mut dir_sizes: HashMap<PathBuf, u64> = HashMap::new();
-
-        self.scan(path, |meta| {
-            if let Some(parent) = meta.path.parent() {
-                *dir_sizes.entry(parent.to_path_buf()).or_insert(0) += meta.size;
-            }
-        });
-
-        let heap: BinaryHeap<_> = dir_sizes
-            .into_iter()
-            .map(|(path, size)| FileWithSize { path, size })
-            .collect();
-
-        heap.into_sorted_vec()
-            .into_iter()
-            .take(n)
-            .map(|f| (f.path, f.size))
-            .collect()
     }
 }
