@@ -42,15 +42,11 @@ impl ParallelScanner {
         }
     }
 
-    pub fn scan<F>(
+    pub fn scan(
         &self,
         path: &Path,
-        callback: F,
         progress: &ScanProgress,
-    ) -> ScanStats
-    where
-        F: Fn(FileMetadata) + Send + Sync,
-    {
+    ) -> (ScanStats, Vec<FileMetadata>) {
         // Shared statistics
         let total_bytes = Arc::new(AtomicU64::new(0));
         let file_count = Arc::new(AtomicU64::new(0));
@@ -71,18 +67,18 @@ impl ParallelScanner {
         let exclude_patterns = self.exclude_patterns.clone();
         let need_modified = self.need_modified;
 
-        // Process entries in parallel
-        walker
+        // Process entries in parallel and collect FileMetadata
+        let files: Vec<FileMetadata> = walker
             .into_iter()
             .par_bridge()
-            .for_each(|entry_result| {
-                match entry_result {
+            .filter_map(|entry_result| {
+                let result = match entry_result {
                     Ok(entry) => {
                         // Check exclusion patterns
                         if !exclude_patterns.is_empty() {
                             let path_str = entry.path().to_string_lossy().to_string();
                             if exclude_patterns.iter().any(|pattern| path_str.contains(pattern)) {
-                                return;
+                                return None;
                             }
                         }
 
@@ -90,10 +86,11 @@ impl ParallelScanner {
                         if let Ok(metadata) = entry.metadata() {
                             if metadata.is_dir() {
                                 dir_count.fetch_add(1, Ordering::Relaxed);
+                                None
                             } else if metadata.is_file() {
                                 let size = metadata.len();
                                 total_bytes.fetch_add(size, Ordering::Relaxed);
-                                file_count.fetch_add(1, Ordering::Relaxed);
+                                let count = file_count.fetch_add(1, Ordering::Relaxed) + 1;
 
                                 let extension = entry
                                     .path()
@@ -108,30 +105,30 @@ impl ParallelScanner {
                                     None
                                 };
 
-                                let file_metadata = FileMetadata {
-                                    path: entry.path(),
-                                    size,
-                                    extension,
-                                    modified,
-                                };
-
-                                callback(file_metadata);
-
                                 // Update progress periodically
-                                let current_count = file_count.load(Ordering::Relaxed);
-                                if current_count % 1000 == 0 {
+                                if count % 1000 == 0 {
                                     progress.update(
-                                        current_count,
+                                        count,
                                         total_bytes.load(Ordering::Relaxed),
                                         entry.path().to_str().unwrap_or(""),
                                     );
                                 }
+
+                                Some(FileMetadata {
+                                    path: entry.path(),
+                                    size,
+                                    extension,
+                                    modified,
+                                })
+                            } else {
+                                None
                             }
                         } else {
                             warnings.lock().push(Warning {
                                 path: entry.path().display().to_string(),
                                 error: "Failed to read metadata".to_string(),
                             });
+                            None
                         }
                     }
                     Err(e) => {
@@ -142,20 +139,25 @@ impl ParallelScanner {
                                 .unwrap_or_else(|| "unknown".to_string()),
                             error: e.to_string(),
                         });
+                        None
                     }
-                }
-            });
+                };
+                result
+            })
+            .collect();
 
         progress.finish();
 
-        ScanStats {
+        let stats = ScanStats {
             total_bytes: total_bytes.load(Ordering::Relaxed),
             file_count: file_count.load(Ordering::Relaxed),
             dir_count: dir_count.load(Ordering::Relaxed),
             warnings: Arc::try_unwrap(warnings)
                 .unwrap_or_else(|_| panic!("Failed to unwrap warnings"))
                 .into_inner(),
-        }
+        };
+
+        (stats, files)
     }
 }
 

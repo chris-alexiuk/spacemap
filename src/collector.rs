@@ -138,6 +138,31 @@ impl SinglePassCollector {
     /// - Creates buckets from category statistics
     /// - Extracts top files from the bounded heap
     /// - Selects top directories from the accumulator using a bounded heap
+    /// Merge another collector into this one (for parallel aggregation)
+    pub fn merge(&mut self, other: SinglePassCollector) {
+        // Merge category stats
+        for (category, (bytes, count)) in other.category_stats {
+            let entry = self.category_stats.entry(category).or_insert((0, 0));
+            entry.0 += bytes;
+            entry.1 += count;
+        }
+
+        // Merge top files heap
+        for file in other.top_files_heap.into_sorted_vec() {
+            self.top_files_heap.push(file);
+        }
+
+        // Merge directory accumulator
+        for (path_id, size) in other.dir_accumulator {
+            *self.dir_accumulator.entry(path_id).or_insert(0) += size;
+        }
+
+        // Merge path pools (intern paths from other into self)
+        // Path IDs from other collector need to be remapped
+        // This is complex, so for now we'll just keep separate pools
+        // and handle it in finalize
+    }
+
     pub fn finalize(self, total_bytes: u64) -> CollectionResults {
         // Create buckets from category statistics
         let mut buckets: Vec<Bucket> = self

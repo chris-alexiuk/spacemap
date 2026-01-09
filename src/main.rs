@@ -173,11 +173,7 @@ fn main() {
     };
 
     let (stats, results) = if cli.parallel {
-        // Parallel scanning with shared collector
-        let collector = Arc::new(Mutex::new(SinglePassCollector::new(categorizer, cli.top, should_collect_tops)));
-        let collector_clone = collector.clone();
-        let dup_finder_clone = dup_finder.clone();
-
+        // Parallel filesystem walking, sequential processing
         let parallel_scanner = ParallelScanner::new(
             cli.threads,
             cli.follow_symlinks,
@@ -186,16 +182,17 @@ fn main() {
             need_modified,
         );
 
-        let stats = parallel_scanner.scan(&path, move |meta| {
-            collector_clone.lock().process_file(meta.clone());
-            if let Some(ref df) = dup_finder_clone {
-                df.lock().add_file(meta.path.clone(), meta.size);
-            }
-        }, &progress);
+        // Collect all files in parallel (fast I/O)
+        let (stats, files) = parallel_scanner.scan(&path, &progress);
 
-        let collector = Arc::try_unwrap(collector)
-            .unwrap_or_else(|_| panic!("Failed to unwrap collector"))
-            .into_inner();
+        // Process files sequentially (fast in-memory operations, no lock contention)
+        let mut collector = SinglePassCollector::new(categorizer, cli.top, should_collect_tops);
+        for file_meta in files {
+            collector.process_file(file_meta.clone());
+            if let Some(ref df) = dup_finder {
+                df.lock().add_file(file_meta.path.clone(), file_meta.size);
+            }
+        }
 
         let results = collector.finalize(stats.total_bytes);
         (stats, results)
