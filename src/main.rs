@@ -6,13 +6,14 @@ mod output;
 mod scanner;
 mod types;
 
-use categorize::{aggregate_by_category, AgeCategorizer, SizeCategorizer, TypeCategorizer};
+use categorize::{AgeCategorizer, SizeCategorizer, TypeCategorizer};
 use clap::Parser;
 use cli::Cli;
+use collector::SinglePassCollector;
 use output::{JsonRenderer, TerminalRenderer};
 use scanner::Scanner;
 use sysinfo::Disks;
-use types::{DirEntry, DiskUsage, FileEntry, ScanResults, Totals};
+use types::{DiskUsage, ScanResults, Totals};
 
 fn main() {
     let cli = Cli::parse();
@@ -31,54 +32,32 @@ fn main() {
 
     let scanner = Scanner::new(cli.follow_symlinks, cli.max_depth, cli.exclude.clone());
 
-    let mut files = Vec::new();
-    let stats = scanner.scan(&path, |meta| {
-        files.push(meta);
-    });
-
-    let buckets = match cli.by.as_str() {
-        "type" => {
-            let categorizer = TypeCategorizer::new();
-            aggregate_by_category(&categorizer, files, stats.total_bytes)
-        }
+    // Create categorizer based on mode
+    let categorizer: Box<dyn categorize::Categorizer> = match cli.by.as_str() {
+        "type" => Box::new(TypeCategorizer::new()),
         "size" => {
             let custom_buckets = cli.size_buckets.as_ref().and_then(|s| parse_size_buckets(s));
-            let categorizer = SizeCategorizer::new(custom_buckets);
-            aggregate_by_category(&categorizer, files, stats.total_bytes)
+            Box::new(SizeCategorizer::new(custom_buckets))
         }
         "age" => {
             let custom_buckets = cli.age_buckets.as_ref().and_then(|s| parse_age_buckets(s));
-            let categorizer = AgeCategorizer::new(custom_buckets);
-            aggregate_by_category(&categorizer, files, stats.total_bytes)
+            Box::new(AgeCategorizer::new(custom_buckets))
         }
         _ => unreachable!(),
     };
 
-    let top_files: Vec<FileEntry> = if cli.verbose || cli.should_output_json() {
-        scanner
-            .collect_top_files(&path, cli.top)
-            .into_iter()
-            .map(|(path, bytes)| FileEntry {
-                path: path.display().to_string(),
-                bytes,
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
+    // Single-pass collection: categorize files, track top files/dirs in one scan
+    let should_collect_tops = cli.verbose || cli.should_output_json();
+    let mut collector = SinglePassCollector::new(categorizer, cli.top, should_collect_tops);
 
-    let top_dirs: Vec<DirEntry> = if cli.verbose || cli.should_output_json() {
-        scanner
-            .collect_top_dirs(&path, cli.top)
-            .into_iter()
-            .map(|(path, bytes)| DirEntry {
-                path: path.display().to_string(),
-                bytes,
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
+    let stats = scanner.scan(&path, |meta| {
+        collector.process_file(meta);
+    });
+
+    let results = collector.finalize(stats.total_bytes);
+    let buckets = results.buckets;
+    let top_files = results.top_files;
+    let top_dirs = results.top_dirs;
 
     let disk_usage = get_disk_usage(&path);
 
