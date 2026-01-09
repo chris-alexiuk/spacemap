@@ -6,6 +6,8 @@
 
 A beautiful, high-performance CLI tool for analyzing disk space usage with developer-friendly terminal visualizations and JSON export.
 
+📖 **[View Full Documentation](https://chris-alexiuk.github.io/spacemap/)**
+
 ## Features
 
 - **Beautiful terminal output** with colored bars, aligned columns, and clear categorization

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>spacemap - Beautiful Disk Space Analyzer</title>
+    <meta name="description" content="A beautiful, high-performance CLI tool for analyzing disk space usage with rich terminal visualizations">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            padding: 4rem 0;
+            color: white;
+        }
+
+        h1 {
+            font-size: 4rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .tagline {
+            font-size: 1.5rem;
+            opacity: 0.95;
+            margin-bottom: 2rem;
+        }
+
+        .badges {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+
+        .badges img {
+            height: 20px;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            padding: 0.75rem 2rem;
+            font-size: 1.1rem;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .btn-primary {
+            background: white;
+            color: #667eea;
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+        }
+
+        .content {
+            background: white;
+            border-radius: 16px;
+            padding: 3rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            font-size: 2rem;
+            color: #667eea;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 3px solid #667eea;
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            color: #764ba2;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+            font-family: "Fira Code", "Consolas", monospace;
+            font-size: 0.9rem;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: "Fira Code", "Consolas", monospace;
+            font-size: 0.9em;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .feature {
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .feature h3 {
+            margin-top: 0;
+            font-size: 1.2rem;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 2rem;
+            margin: 2rem 0;
+            padding: 2rem;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-radius: 8px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 1rem;
+            color: #666;
+            margin-top: 0.5rem;
+        }
+
+        .example-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1.5rem;
+            border-radius: 8px;
+            font-family: "Fira Code", "Consolas", monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+
+        .example-output .green { color: #4ec9b0; }
+        .example-output .blue { color: #569cd6; }
+        .example-output .yellow { color: #dcdcaa; }
+        .example-output .cyan { color: #4ec9b0; }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: white;
+            opacity: 0.9;
+        }
+
+        footer a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            .tagline {
+                font-size: 1.2rem;
+            }
+
+            .content {
+                padding: 1.5rem;
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>spacemap</h1>
+            <p class="tagline">A beautiful, high-performance CLI tool for disk space analysis</p>
+
+            <div class="badges">
+                <img src="https://img.shields.io/crates/v/spacemap.svg" alt="Crates.io">
+                <img src="https://img.shields.io/crates/d/spacemap.svg" alt="Downloads">
+                <img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg" alt="License">
+            </div>
+
+            <div class="cta-buttons">
+                <a href="https://crates.io/crates/spacemap" class="btn btn-primary">Install from crates.io</a>
+                <a href="https://github.com/chris-alexiuk/spacemap" class="btn btn-secondary">View on GitHub</a>
+            </div>
+        </header>
+
+        <div class="content">
+            <h2>⚡ Performance First</h2>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-number">3x</div>
+                    <div class="stat-label">Faster</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">400x</div>
+                    <div class="stat-label">Less Memory</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">1</div>
+                    <div class="stat-label">Filesystem Scan</div>
+                </div>
+            </div>
+
+            <p>Built from the ground up for performance using Rust. Single-pass filesystem scanning with bounded memory usage means you can analyze massive directories without running out of RAM.</p>
+        </div>
+
+        <div class="content">
+            <h2>📦 Installation</h2>
+
+            <h3>From crates.io (Recommended)</h3>
+            <pre><code>cargo install spacemap</code></pre>
+
+            <h3>From GitHub Releases</h3>
+            <p>Download pre-built binaries from the <a href="https://github.com/chris-alexiuk/spacemap/releases">Releases page</a>.</p>
+
+            <h3>Build from Source</h3>
+            <pre><code>git clone https://github.com/chris-alexiuk/spacemap
+cd spacemap
+cargo build --release</code></pre>
+        </div>
+
+        <div class="content">
+            <h2>🚀 Quick Start</h2>
+
+            <h3>Basic Usage</h3>
+            <pre><code># Scan current directory
+spacemap
+
+# Scan a specific path
+spacemap /home/user/projects
+
+# Show top 20 largest files and directories
+spacemap --verbose --top 20</code></pre>
+
+            <h3>Example Output</h3>
+            <div class="example-output">Storage Analysis: /home/user/projects
+────────────────────────────────────────────────────────
+DISK  42.24 GiB / 97.87 GiB (43.2% used)
+SCAN  791.99 MiB (0.79% of disk)
+MODE  type    FILES  2962    DIRS  501
+
+
+CATEGORY              SIZE     PCT     FILES  DISTRIBUTION
+────────────────────────────────────────────  ────────────────────
+<span class="cyan">Other</span>        708.69 MiB    89.5%        2560  <span class="green">██████████████████████████░░░░</span>
+<span class="cyan">Binaries</span>      81.49 MiB    10.3%          18  <span class="green">███░░░░░░░░░░░░░░░░░░░░░░░░░░░</span>
+<span class="cyan">Code</span>           1.61 MiB     0.2%          37  <span class="green">░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░</span></div>
+        </div>
+
+        <div class="content">
+            <h2>✨ Features</h2>
+
+            <div class="features">
+                <div class="feature">
+                    <h3>🎨 Beautiful Output</h3>
+                    <p>Colored bars, aligned columns, and clear categorization make it easy to understand your disk usage at a glance.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>🔥 Blazingly Fast</h3>
+                    <p>Single-pass filesystem scanning with bounded memory usage. Analyze millions of files in seconds.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>📊 Multiple Modes</h3>
+                    <p>Categorize by file type, size buckets, or file age. Customize bucket boundaries to fit your needs.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>🔍 Drill Down</h3>
+                    <p>Verbose mode shows top N largest files and directories to help you find space hogs quickly.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>📝 JSON Export</h3>
+                    <p>Export results as JSON for scripting, automation, and integration with other tools.</p>
+                </div>
+
+                <div class="feature">
+                    <h3>🌍 Cross-Platform</h3>
+                    <p>Works on Linux, macOS, and Windows. One tool for all your systems.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <h2>📚 Advanced Usage</h2>
+
+            <h3>Categorization Modes</h3>
+            <pre><code># By file type (default)
+spacemap --by type
+
+# By size buckets
+spacemap --by size
+
+# By file age
+spacemap --by age</code></pre>
+
+            <h3>Filtering & Options</h3>
+            <pre><code># Limit recursion depth
+spacemap --max-depth 3
+
+# Exclude patterns
+spacemap --exclude node_modules --exclude .git
+
+# Custom size buckets (comma-separated bytes)
+spacemap --by size --size-buckets "1024,10240,102400,1048576"
+
+# Custom age buckets (comma-separated days)
+spacemap --by age --age-buckets "1,7,30,90,365"</code></pre>
+
+            <h3>JSON Export</h3>
+            <pre><code># Output to stdout
+spacemap --json
+
+# Write to file
+spacemap --output report.json</code></pre>
+        </div>
+
+        <div class="content">
+            <h2>🏗️ How It Works</h2>
+
+            <h3>Architecture</h3>
+            <p>spacemap uses several key optimizations to achieve its performance:</p>
+
+            <ul style="line-height: 2; margin: 1rem 0;">
+                <li><strong>Single-Pass Scanning:</strong> Traditional tools make multiple passes over your filesystem. spacemap does everything in one scan.</li>
+                <li><strong>Bounded Min-Heaps:</strong> Instead of storing all files to find the largest ones, we use a bounded heap that maintains only the top N items.</li>
+                <li><strong>Zero-Copy Strings:</strong> File type categorization uses borrowed strings instead of allocating new ones for each file.</li>
+                <li><strong>Streaming Aggregation:</strong> Results are aggregated on-the-fly as files are scanned, not stored in memory first.</li>
+            </ul>
+
+            <h3>Performance Metrics</h3>
+            <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                <tr style="background: #f4f4f4;">
+                    <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Metric</th>
+                    <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">Traditional Tool</th>
+                    <th style="padding: 0.75rem; text-align: left; border: 1px solid #ddd;">spacemap</th>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd;">Filesystem Scans</td>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd;">3 separate scans</td>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd;"><strong>1 scan</strong></td>
+                </tr>
+                <tr style="background: #f4f4f4;">
+                    <td style="padding: 0.75rem; border: 1px solid #ddd;">Memory (1M files)</td>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd;">~400 MB</td>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd;"><strong>~1 MB</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd;">Speed</td>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd;">Baseline</td>
+                    <td style="padding: 0.75rem; border: 1px solid #ddd;"><strong>3x faster</strong></td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="content">
+            <h2>📄 License</h2>
+            <p>Licensed under either of:</p>
+            <ul style="line-height: 2; margin: 1rem 0;">
+                <li>Apache License, Version 2.0 (<a href="https://github.com/chris-alexiuk/spacemap/blob/main/LICENSE-APACHE">LICENSE-APACHE</a>)</li>
+                <li>MIT license (<a href="https://github.com/chris-alexiuk/spacemap/blob/main/LICENSE-MIT">LICENSE-MIT</a>)</li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>Built with ❤️ in Rust | <a href="https://github.com/chris-alexiuk/spacemap">GitHub</a> | <a href="https://crates.io/crates/spacemap">crates.io</a></p>
+        </footer>
+    </div>
+</body>
+</html>
