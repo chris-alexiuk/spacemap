@@ -1,3 +1,4 @@
+mod bounded_heap;
 mod categorize;
 mod cli;
 mod output;
