@@ -7,8 +7,15 @@ use jwalk::WalkDir;
 use parking_lot::Mutex;
 use rayon::prelude::*;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+
+/// Thread-local state: collector + statistics
+struct ThreadState {
+    collector: SinglePassCollector,
+    total_bytes: u64,
+    file_count: u64,
+    dir_count: u64,
+}
 
 /// Parallel directory scanner using jwalk and rayon.
 /// Uses a shared collector protected by parking_lot::Mutex for simplicity.
@@ -56,10 +63,7 @@ impl ParallelScanner {
     where
         F: Fn(&FileMetadata) + Send + Sync,
     {
-        // Shared statistics
-        let total_bytes = Arc::new(AtomicU64::new(0));
-        let file_count = Arc::new(AtomicU64::new(0));
-        let dir_count = Arc::new(AtomicU64::new(0));
+        // Shared warnings (rare, so Mutex is fine)
         let warnings = Arc::new(Mutex::new(Vec::new()));
 
         // Configure jwalk for parallel walking
@@ -76,31 +80,36 @@ impl ParallelScanner {
         let exclude_patterns = self.exclude_patterns.clone();
         let need_modified = self.need_modified;
 
-        // Use rayon's fold to create thread-local collectors
-        let collector = walker
+        // Use rayon's fold to create thread-local state (collector + stats)
+        let final_state = walker
             .into_iter()
             .par_bridge()
             .fold(
-                || SinglePassCollector::new(categorizer.clone_box(), top_n, should_collect_tops),
-                |mut collector, entry_result| {
+                || ThreadState {
+                    collector: SinglePassCollector::new(categorizer.clone_box(), top_n, should_collect_tops),
+                    total_bytes: 0,
+                    file_count: 0,
+                    dir_count: 0,
+                },
+                |mut state, entry_result| {
                     let file_meta = match entry_result {
                         Ok(entry) => {
                             // Check exclusion patterns
                             if !exclude_patterns.is_empty() {
                                 let path_str = entry.path().to_string_lossy().to_string();
                                 if exclude_patterns.iter().any(|pattern| path_str.contains(pattern)) {
-                                    return collector;
+                                    return state;
                                 }
                             }
 
                             // Process the entry
                             if let Ok(metadata) = entry.metadata() {
                                 if metadata.is_dir() {
-                                    dir_count.fetch_add(1, Ordering::Relaxed);
+                                    state.dir_count += 1;
                                 } else if metadata.is_file() {
                                     let size = metadata.len();
-                                    total_bytes.fetch_add(size, Ordering::Relaxed);
-                                    let count = file_count.fetch_add(1, Ordering::Relaxed) + 1;
+                                    state.total_bytes += size;
+                                    state.file_count += 1;
 
                                     let extension = entry
                                         .path()
@@ -123,17 +132,8 @@ impl ParallelScanner {
                                     };
 
                                     // Process directly into thread-local collector
-                                    collector.process_file(file_meta.clone());
+                                    state.collector.process_file(file_meta.clone());
                                     callback(&file_meta);
-
-                                    // Update progress periodically
-                                    if count % 1000 == 0 {
-                                        progress.update(
-                                            count,
-                                            total_bytes.load(Ordering::Relaxed),
-                                            entry.path().to_str().unwrap_or(""),
-                                        );
-                                    }
                                 }
                             } else {
                                 warnings.lock().push(Warning {
@@ -152,13 +152,23 @@ impl ParallelScanner {
                             });
                         }
                     };
-                    collector
+                    state
                 },
             )
             .reduce(
-                || SinglePassCollector::new(categorizer.clone_box(), top_n, should_collect_tops),
-                |mut acc, collector| {
-                    acc.merge(collector);
+                || ThreadState {
+                    collector: SinglePassCollector::new(categorizer.clone_box(), top_n, should_collect_tops),
+                    total_bytes: 0,
+                    file_count: 0,
+                    dir_count: 0,
+                },
+                |mut acc, other| {
+                    // Merge collectors
+                    acc.collector.merge(other.collector);
+                    // Sum statistics
+                    acc.total_bytes += other.total_bytes;
+                    acc.file_count += other.file_count;
+                    acc.dir_count += other.dir_count;
                     acc
                 },
             );
@@ -166,15 +176,15 @@ impl ParallelScanner {
         progress.finish();
 
         let stats = ScanStats {
-            total_bytes: total_bytes.load(Ordering::Relaxed),
-            file_count: file_count.load(Ordering::Relaxed),
-            dir_count: dir_count.load(Ordering::Relaxed),
+            total_bytes: final_state.total_bytes,
+            file_count: final_state.file_count,
+            dir_count: final_state.dir_count,
             warnings: Arc::try_unwrap(warnings)
                 .unwrap_or_else(|_| panic!("Failed to unwrap warnings"))
                 .into_inner(),
         };
 
-        (stats, collector)
+        (stats, final_state.collector)
     }
 }
 
