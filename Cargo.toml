@@ -1,7 +1,14 @@
 [package]
-name = "storage-check"
-version = "0.1.0"
+name = "spacemap"
+version = "1.0.0"
 edition = "2021"
+authors = ["Chris Alexiuk"]
+description = "A beautiful CLI tool for analyzing disk space usage with rich terminal visualizations"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/chris-alexiuk/homelab"
+keywords = ["disk", "storage", "cli", "filesystem", "analyzer"]
+categories = ["command-line-utilities", "filesystem"]
+readme = "README.md"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
