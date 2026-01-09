@@ -1,6 +1,7 @@
 mod bounded_heap;
 mod categorize;
 mod cli;
+mod collector;
 mod output;
 mod scanner;
 mod types;
