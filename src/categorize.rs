@@ -1,9 +1,9 @@
-use crate::types::{Bucket, FileMetadata};
-use std::collections::HashMap;
+use crate::types::FileMetadata;
+use std::borrow::Cow;
 use std::time::{Duration, SystemTime};
 
 pub trait Categorizer {
-    fn categorize(&self, metadata: &FileMetadata) -> String;
+    fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str>;
     fn get_label(&self, key: &str) -> String;
 }
 
@@ -36,12 +36,13 @@ impl TypeCategorizer {
 }
 
 impl Categorizer for TypeCategorizer {
-    fn categorize(&self, metadata: &FileMetadata) -> String {
-        metadata
+    fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str> {
+        let category = metadata
             .extension
             .as_ref()
-            .map(|ext| Self::map_extension_to_category(ext).to_string())
-            .unwrap_or_else(|| "Other".to_string())
+            .map(|ext| Self::map_extension_to_category(ext))
+            .unwrap_or("Other");
+        Cow::Borrowed(category)
     }
 
     fn get_label(&self, key: &str) -> String {
@@ -97,8 +98,8 @@ impl SizeCategorizer {
 }
 
 impl Categorizer for SizeCategorizer {
-    fn categorize(&self, metadata: &FileMetadata) -> String {
-        self.find_bucket(metadata.size).to_string()
+    fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str> {
+        Cow::Owned(self.find_bucket(metadata.size).to_string())
     }
 
     fn get_label(&self, key: &str) -> String {
@@ -159,14 +160,13 @@ impl AgeCategorizer {
 }
 
 impl Categorizer for AgeCategorizer {
-    fn categorize(&self, metadata: &FileMetadata) -> String {
-        metadata
-            .modified
-            .map(|modified| {
-                let days = Self::days_since_modified(modified);
-                self.find_bucket(days).to_string()
-            })
-            .unwrap_or_else(|| "Unknown".to_string())
+    fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str> {
+        if let Some(modified) = metadata.modified {
+            let days = Self::days_since_modified(modified);
+            Cow::Owned(self.find_bucket(days).to_string())
+        } else {
+            Cow::Borrowed("Unknown")
+        }
     }
 
     fn get_label(&self, key: &str) -> String {
@@ -174,39 +174,3 @@ impl Categorizer for AgeCategorizer {
     }
 }
 
-pub fn aggregate_by_category<C: Categorizer>(
-    categorizer: &C,
-    files: Vec<FileMetadata>,
-    total_bytes: u64,
-) -> Vec<Bucket> {
-    let mut category_map: HashMap<String, (u64, u64)> = HashMap::new();
-
-    for file in files {
-        let category = categorizer.categorize(&file);
-        let entry = category_map.entry(category).or_insert((0, 0));
-        entry.0 += file.size;
-        entry.1 += 1;
-    }
-
-    let mut buckets: Vec<Bucket> = category_map
-        .into_iter()
-        .map(|(key, (bytes, count))| {
-            let percent = if total_bytes > 0 {
-                (bytes as f64 / total_bytes as f64) * 100.0
-            } else {
-                0.0
-            };
-
-            Bucket {
-                label: categorizer.get_label(&key),
-                key,
-                bytes,
-                percent,
-                file_count: count,
-            }
-        })
-        .collect();
-
-    buckets.sort_by(|a, b| b.bytes.cmp(&a.bytes));
-    buckets
-}

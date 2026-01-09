@@ -1,28 +1,40 @@
-# storage-check
+# spacemap
 
-A beautiful, cross-platform CLI tool for analyzing disk space usage with developer-friendly terminal visualizations and JSON export.
+[![Crates.io](https://img.shields.io/crates/v/spacemap.svg)](https://crates.io/crates/spacemap)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](https://github.com/chris-alexiuk/storage-check#license)
+[![Documentation](https://docs.rs/spacemap/badge.svg)](https://docs.rs/spacemap)
+
+A beautiful, high-performance CLI tool for analyzing disk space usage with developer-friendly terminal visualizations and JSON export.
 
 ## Features
 
 - **Beautiful terminal output** with colored bars, aligned columns, and clear categorization
+- **Blazingly fast** - single-pass filesystem scanning with bounded memory usage
 - **Disk usage information** showing total disk space, used space, and what percentage your scan represents
 - **Multiple categorization modes**: by file type, size buckets, or file age
 - **Verbose drill-down** showing top N largest files and directories
 - **JSON export** for scripting and automation
 - **Cross-platform** support (Linux, macOS, Windows)
-- **Memory efficient** streaming aggregation
+- **Memory efficient** - constant memory for top-N tracking, streaming aggregation
 - **Customizable** bucket boundaries for size and age modes
 
 ## Installation
 
-Build from source:
+### From crates.io (recommended)
 
 ```bash
-cd tools/storage-check
+cargo install spacemap
+```
+
+### From source
+
+```bash
+git clone https://github.com/chris-alexiuk/storage-check
+cd storage-check
 cargo build --release
 ```
 
-The binary will be available at `target/release/storage-check`.
+The binary will be available at `target/release/spacemap`.
 
 ## Usage
 
@@ -30,80 +42,80 @@ The binary will be available at `target/release/storage-check`.
 
 Scan current directory (default: categorize by file type):
 ```bash
-storage-check
+spacemap
 ```
 
 Scan a specific path:
 ```bash
-storage-check /home/user/projects
+spacemap /home/user/projects
 ```
 
 ### Categorization Modes
 
 **By file type** (default):
 ```bash
-storage-check --by type
+spacemap --by type
 ```
 
 **By size buckets**:
 ```bash
-storage-check --by size
+spacemap --by size
 ```
 
 **By file age**:
 ```bash
-storage-check --by age
+spacemap --by age
 ```
 
 ### Verbose output
 
 Show top 10 largest files and directories:
 ```bash
-storage-check --verbose
+spacemap --verbose
 ```
 
 Show top 20 items:
 ```bash
-storage-check --verbose --top 20
+spacemap --verbose --top 20
 ```
 
 ### JSON export
 
 Output to stdout:
 ```bash
-storage-check --json
+spacemap --json
 ```
 
 Write to file:
 ```bash
-storage-check --output report.json
+spacemap --output report.json
 ```
 
 ### Advanced options
 
 **Limit recursion depth**:
 ```bash
-storage-check --max-depth 3
+spacemap --max-depth 3
 ```
 
 **Exclude patterns**:
 ```bash
-storage-check --exclude node_modules --exclude .git
+spacemap --exclude node_modules --exclude .git
 ```
 
 **Follow symlinks** (disabled by default):
 ```bash
-storage-check --follow-symlinks
+spacemap --follow-symlinks
 ```
 
 **Custom size buckets** (comma-separated bytes):
 ```bash
-storage-check --by size --size-buckets "1024,10240,102400,1048576"
+spacemap --by size --size-buckets "1024,10240,102400,1048576"
 ```
 
 **Custom age buckets** (comma-separated days):
 ```bash
-storage-check --by age --age-buckets "1,7,30,90,365"
+spacemap --by age --age-buckets "1,7,30,90,365"
 ```
 
 ## Example Output
@@ -234,4 +246,13 @@ When using `--json` or `--output`, the tool outputs the following structure:
 
 ## License
 
-Part of the homelab infrastructure tools.
+Licensed under either of:
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.

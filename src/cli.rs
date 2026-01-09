@@ -2,7 +2,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[command(name = "storage-check")]
+#[command(name = "spacemap")]
 #[command(about = "A beautiful CLI disk space analyzer", long_about = None)]
 pub struct Cli {
     /// Path to scan (defaults to current directory)
