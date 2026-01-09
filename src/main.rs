@@ -103,7 +103,7 @@ fn main() {
             std::process::exit(3);
         }
     } else {
-        let use_color = !cli.no_color && atty::is(atty::Stream::Stdout);
+        let use_color = !cli.no_color && std::io::IsTerminal::is_terminal(&std::io::stdout());
         let renderer = TerminalRenderer::new(use_color, cli.verbose);
         renderer.render(&results);
     }
