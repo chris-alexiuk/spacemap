@@ -1,7 +1,7 @@
 # spacemap
 
 [![Crates.io](https://img.shields.io/crates/v/spacemap.svg)](https://crates.io/crates/spacemap)
-[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](https://github.com/chris-alexiuk/storage-check#license)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](https://github.com/chris-alexiuk/spacemap#license)
 [![Documentation](https://docs.rs/spacemap/badge.svg)](https://docs.rs/spacemap)
 
 A beautiful, high-performance CLI tool for analyzing disk space usage with developer-friendly terminal visualizations and JSON export.
@@ -29,8 +29,8 @@ cargo install spacemap
 ### From source
 
 ```bash
-git clone https://github.com/chris-alexiuk/storage-check
-cd storage-check
+git clone https://github.com/chris-alexiuk/spacemap
+cd spacemap
 cargo build --release
 ```
 
