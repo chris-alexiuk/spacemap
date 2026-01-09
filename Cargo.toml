@@ -1,6 +1,6 @@
 [package]
 name = "spacemap"
-version = "1.0.4"
+version = "1.0.5"
 edition = "2021"
 authors = ["Chris Alexiuk"]
 description = "A beautiful CLI tool for analyzing disk space usage with rich terminal visualizations"

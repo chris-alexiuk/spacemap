@@ -173,7 +173,7 @@ fn main() {
     };
 
     let (stats, results) = if cli.parallel {
-        // Parallel filesystem walking, sequential processing
+        // Parallel filesystem walking with thread-local collectors
         let parallel_scanner = ParallelScanner::new(
             cli.threads,
             cli.follow_symlinks,
@@ -182,17 +182,21 @@ fn main() {
             need_modified,
         );
 
-        // Collect all files in parallel (fast I/O)
-        let (stats, files) = parallel_scanner.scan(&path, &progress);
+        let dup_finder_clone = dup_finder.clone();
 
-        // Process files sequentially (fast in-memory operations, no lock contention)
-        let mut collector = SinglePassCollector::new(categorizer, cli.top, should_collect_tops);
-        for file_meta in files {
-            collector.process_file(file_meta.clone());
-            if let Some(ref df) = dup_finder {
-                df.lock().add_file(file_meta.path.clone(), file_meta.size);
-            }
-        }
+        // Each thread processes into its own collector, then merge at end
+        let (stats, collector) = parallel_scanner.scan(
+            &path,
+            categorizer,
+            cli.top,
+            should_collect_tops,
+            &progress,
+            |file_meta| {
+                if let Some(ref df) = dup_finder_clone {
+                    df.lock().add_file(file_meta.path.clone(), file_meta.size);
+                }
+            },
+        );
 
         let results = collector.finalize(stats.total_bytes);
         (stats, results)

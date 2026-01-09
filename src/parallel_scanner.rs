@@ -1,3 +1,5 @@
+use crate::categorize::Categorizer;
+use crate::collector::SinglePassCollector;
 use crate::progress::ScanProgress;
 use crate::scanner::ScanStats;
 use crate::types::{FileMetadata, Warning};
@@ -42,11 +44,18 @@ impl ParallelScanner {
         }
     }
 
-    pub fn scan(
+    pub fn scan<F>(
         &self,
         path: &Path,
+        categorizer: Box<dyn Categorizer>,
+        top_n: usize,
+        should_collect_tops: bool,
         progress: &ScanProgress,
-    ) -> (ScanStats, Vec<FileMetadata>) {
+        callback: F,
+    ) -> (ScanStats, SinglePassCollector)
+    where
+        F: Fn(&FileMetadata) + Send + Sync,
+    {
         // Shared statistics
         let total_bytes = Arc::new(AtomicU64::new(0));
         let file_count = Arc::new(AtomicU64::new(0));
@@ -67,84 +76,92 @@ impl ParallelScanner {
         let exclude_patterns = self.exclude_patterns.clone();
         let need_modified = self.need_modified;
 
-        // Process entries in parallel and collect FileMetadata
-        let files: Vec<FileMetadata> = walker
+        // Use rayon's fold to create thread-local collectors
+        let collector = walker
             .into_iter()
             .par_bridge()
-            .filter_map(|entry_result| {
-                let result = match entry_result {
-                    Ok(entry) => {
-                        // Check exclusion patterns
-                        if !exclude_patterns.is_empty() {
-                            let path_str = entry.path().to_string_lossy().to_string();
-                            if exclude_patterns.iter().any(|pattern| path_str.contains(pattern)) {
-                                return None;
-                            }
-                        }
-
-                        // Process the entry
-                        if let Ok(metadata) = entry.metadata() {
-                            if metadata.is_dir() {
-                                dir_count.fetch_add(1, Ordering::Relaxed);
-                                None
-                            } else if metadata.is_file() {
-                                let size = metadata.len();
-                                total_bytes.fetch_add(size, Ordering::Relaxed);
-                                let count = file_count.fetch_add(1, Ordering::Relaxed) + 1;
-
-                                let extension = entry
-                                    .path()
-                                    .extension()
-                                    .and_then(|e| e.to_str())
-                                    .map(|s| s.to_lowercase());
-
-                                // Lazy metadata loading
-                                let modified = if need_modified {
-                                    metadata.modified().ok()
-                                } else {
-                                    None
-                                };
-
-                                // Update progress periodically
-                                if count % 1000 == 0 {
-                                    progress.update(
-                                        count,
-                                        total_bytes.load(Ordering::Relaxed),
-                                        entry.path().to_str().unwrap_or(""),
-                                    );
+            .fold(
+                || SinglePassCollector::new(categorizer.clone_box(), top_n, should_collect_tops),
+                |mut collector, entry_result| {
+                    let file_meta = match entry_result {
+                        Ok(entry) => {
+                            // Check exclusion patterns
+                            if !exclude_patterns.is_empty() {
+                                let path_str = entry.path().to_string_lossy().to_string();
+                                if exclude_patterns.iter().any(|pattern| path_str.contains(pattern)) {
+                                    return collector;
                                 }
-
-                                Some(FileMetadata {
-                                    path: entry.path(),
-                                    size,
-                                    extension,
-                                    modified,
-                                })
-                            } else {
-                                None
                             }
-                        } else {
-                            warnings.lock().push(Warning {
-                                path: entry.path().display().to_string(),
-                                error: "Failed to read metadata".to_string(),
-                            });
-                            None
+
+                            // Process the entry
+                            if let Ok(metadata) = entry.metadata() {
+                                if metadata.is_dir() {
+                                    dir_count.fetch_add(1, Ordering::Relaxed);
+                                } else if metadata.is_file() {
+                                    let size = metadata.len();
+                                    total_bytes.fetch_add(size, Ordering::Relaxed);
+                                    let count = file_count.fetch_add(1, Ordering::Relaxed) + 1;
+
+                                    let extension = entry
+                                        .path()
+                                        .extension()
+                                        .and_then(|e| e.to_str())
+                                        .map(|s| s.to_lowercase());
+
+                                    // Lazy metadata loading
+                                    let modified = if need_modified {
+                                        metadata.modified().ok()
+                                    } else {
+                                        None
+                                    };
+
+                                    let file_meta = FileMetadata {
+                                        path: entry.path(),
+                                        size,
+                                        extension,
+                                        modified,
+                                    };
+
+                                    // Process directly into thread-local collector
+                                    collector.process_file(file_meta.clone());
+                                    callback(&file_meta);
+
+                                    // Update progress periodically
+                                    if count % 1000 == 0 {
+                                        progress.update(
+                                            count,
+                                            total_bytes.load(Ordering::Relaxed),
+                                            entry.path().to_str().unwrap_or(""),
+                                        );
+                                    }
+                                }
+                            } else {
+                                warnings.lock().push(Warning {
+                                    path: entry.path().display().to_string(),
+                                    error: "Failed to read metadata".to_string(),
+                                });
+                            }
                         }
-                    }
-                    Err(e) => {
-                        warnings.lock().push(Warning {
-                            path: e
-                                .path()
-                                .map(|p| p.display().to_string())
-                                .unwrap_or_else(|| "unknown".to_string()),
-                            error: e.to_string(),
-                        });
-                        None
-                    }
-                };
-                result
-            })
-            .collect();
+                        Err(e) => {
+                            warnings.lock().push(Warning {
+                                path: e
+                                    .path()
+                                    .map(|p| p.display().to_string())
+                                    .unwrap_or_else(|| "unknown".to_string()),
+                                error: e.to_string(),
+                            });
+                        }
+                    };
+                    collector
+                },
+            )
+            .reduce(
+                || SinglePassCollector::new(categorizer.clone_box(), top_n, should_collect_tops),
+                |mut acc, collector| {
+                    acc.merge(collector);
+                    acc
+                },
+            );
 
         progress.finish();
 
@@ -157,7 +174,7 @@ impl ParallelScanner {
                 .into_inner(),
         };
 
-        (stats, files)
+        (stats, collector)
     }
 }
 

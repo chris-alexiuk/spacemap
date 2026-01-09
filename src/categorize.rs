@@ -5,6 +5,7 @@ use std::time::{Duration, SystemTime};
 pub trait Categorizer: Send + Sync {
     fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str>;
     fn get_label(&self, key: &str) -> String;
+    fn clone_box(&self) -> Box<dyn Categorizer>;
 }
 
 pub struct TypeCategorizer;
@@ -36,6 +37,10 @@ impl TypeCategorizer {
 }
 
 impl Categorizer for TypeCategorizer {
+    fn clone_box(&self) -> Box<dyn Categorizer> {
+        Box::new(TypeCategorizer)
+    }
+
     fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str> {
         let category = metadata
             .extension
@@ -98,6 +103,12 @@ impl SizeCategorizer {
 }
 
 impl Categorizer for SizeCategorizer {
+    fn clone_box(&self) -> Box<dyn Categorizer> {
+        Box::new(SizeCategorizer {
+            buckets: self.buckets.clone(),
+        })
+    }
+
     fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str> {
         Cow::Owned(self.find_bucket(metadata.size).to_string())
     }
@@ -160,6 +171,12 @@ impl AgeCategorizer {
 }
 
 impl Categorizer for AgeCategorizer {
+    fn clone_box(&self) -> Box<dyn Categorizer> {
+        Box::new(AgeCategorizer {
+            buckets: self.buckets.clone(),
+        })
+    }
+
     fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str> {
         if let Some(modified) = metadata.modified {
             let days = Self::days_since_modified(modified);

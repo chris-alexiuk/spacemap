@@ -139,7 +139,7 @@ impl SinglePassCollector {
     /// - Extracts top files from the bounded heap
     /// - Selects top directories from the accumulator using a bounded heap
     /// Merge another collector into this one (for parallel aggregation)
-    pub fn merge(&mut self, other: SinglePassCollector) {
+    pub fn merge(&mut self, mut other: SinglePassCollector) {
         // Merge category stats
         for (category, (bytes, count)) in other.category_stats {
             let entry = self.category_stats.entry(category).or_insert((0, 0));
@@ -152,15 +152,14 @@ impl SinglePassCollector {
             self.top_files_heap.push(file);
         }
 
-        // Merge directory accumulator
-        for (path_id, size) in other.dir_accumulator {
-            *self.dir_accumulator.entry(path_id).or_insert(0) += size;
+        // Merge directory accumulator - need to remap path IDs
+        // Since path pools are separate, we intern all paths from other into self
+        for (other_path_id, size) in other.dir_accumulator {
+            if let Some(path) = other.path_pool.get(other_path_id) {
+                let self_path_id = self.path_pool.intern(path);
+                *self.dir_accumulator.entry(self_path_id).or_insert(0) += size;
+            }
         }
-
-        // Merge path pools (intern paths from other into self)
-        // Path IDs from other collector need to be remapped
-        // This is complex, so for now we'll just keep separate pools
-        // and handle it in finalize
     }
 
     pub fn finalize(self, total_bytes: u64) -> CollectionResults {
