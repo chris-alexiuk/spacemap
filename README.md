@@ -139,14 +139,14 @@ spacemap --by age --age-buckets "1,7,30,90,365"
 
 ### Performance Features
 
-**Parallel scanning** for faster performance on multi-core systems:
+**Parallel scanning** for 5x faster performance on multi-core systems:
 ```bash
 spacemap --parallel --threads 8
 ```
 
-**Disable progress indicator** for faster scanning or scripting:
+**Show progress indicator** for long scans (off by default for max performance):
 ```bash
-spacemap --quiet
+spacemap --progress
 ```
 
 ### Advanced Features
