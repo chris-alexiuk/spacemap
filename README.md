@@ -1,8 +1,8 @@
 # spacemap
 
 [![Crates.io](https://img.shields.io/crates/v/spacemap.svg)](https://crates.io/crates/spacemap)
+[![Downloads](https://img.shields.io/crates/d/spacemap.svg)](https://crates.io/crates/spacemap)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](https://github.com/chris-alexiuk/spacemap#license)
-[![Documentation](https://docs.rs/spacemap/badge.svg)](https://docs.rs/spacemap)
 
 A beautiful, high-performance CLI tool for analyzing disk space usage with developer-friendly terminal visualizations and JSON export.
 
@@ -26,7 +26,13 @@ A beautiful, high-performance CLI tool for analyzing disk space usage with devel
 cargo install spacemap
 ```
 
-### From source
+After installation, the `spacemap` command will be available in your PATH.
+
+### From GitHub Releases
+
+Download pre-built binaries from the [Releases page](https://github.com/chris-alexiuk/spacemap/releases).
+
+### Build from source
 
 ```bash
 git clone https://github.com/chris-alexiuk/spacemap
@@ -34,7 +40,7 @@ cd spacemap
 cargo build --release
 ```
 
-The binary will be available at `target/release/spacemap`.
+The compiled binary will be created at `target/release/spacemap`.
 
 ## Usage
 
