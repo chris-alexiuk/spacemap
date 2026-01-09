@@ -30,6 +30,13 @@ impl TerminalRenderer {
                 self.print_top_dirs(&results.top_dirs);
             }
 
+            if let Some(ref duplicates) = results.duplicates {
+                if !duplicates.is_empty() {
+                    println!();
+                    self.print_duplicates(duplicates);
+                }
+            }
+
             if !results.warnings.is_empty() {
                 println!();
                 self.print_warnings(&results.warnings);
@@ -264,6 +271,46 @@ impl TerminalRenderer {
             println!(
                 "    {}",
                 self.style(&format!("...and {} more", warnings.len() - 5), "bright_black", false)
+            );
+        }
+    }
+
+    fn print_duplicates(&self, duplicates: &[crate::types::DuplicateGroup]) {
+        println!(
+            "  {}",
+            self.style("DUPLICATE FILES", "yellow", true)
+        );
+        println!("  {}", self.style(&"─".repeat(56), "bright_black", false));
+
+        let total_wasted: u64 = duplicates.iter().map(|d| d.wasted_space).sum();
+        println!(
+            "  Found {} duplicate groups, wasting {}",
+            self.style(&duplicates.len().to_string(), "red", true),
+            self.style(&format_size(total_wasted, BINARY), "red", true)
+        );
+        println!();
+
+        for (i, dup_group) in duplicates.iter().take(10).enumerate() {
+            println!(
+                "  {}. {} ({} × {} files, wastes {})",
+                self.style(&(i + 1).to_string(), "cyan", false),
+                self.style(&format_size(dup_group.size, BINARY), "green", true),
+                dup_group.paths.len(),
+                self.style("duplicate", "red", false),
+                self.style(&format_size(dup_group.wasted_space, BINARY), "red", false)
+            );
+
+            for path in &dup_group.paths {
+                let truncated = self.truncate_path(path, 50);
+                println!("     {}", self.style(&truncated, "bright_black", false));
+            }
+            println!();
+        }
+
+        if duplicates.len() > 10 {
+            println!(
+                "  {}",
+                self.style(&format!("...and {} more duplicate groups", duplicates.len() - 10), "bright_black", false)
             );
         }
     }

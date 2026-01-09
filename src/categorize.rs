@@ -2,7 +2,7 @@ use crate::types::FileMetadata;
 use std::borrow::Cow;
 use std::time::{Duration, SystemTime};
 
-pub trait Categorizer {
+pub trait Categorizer: Send + Sync {
     fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str>;
     fn get_label(&self, key: &str) -> String;
 }

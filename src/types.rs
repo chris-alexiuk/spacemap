@@ -11,6 +11,16 @@ pub struct ScanResults {
     pub top_files: Vec<FileEntry>,
     pub top_dirs: Vec<DirEntry>,
     pub warnings: Vec<Warning>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duplicates: Option<Vec<DuplicateGroup>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuplicateGroup {
+    pub size: u64,
+    pub hash: String,
+    pub paths: Vec<String>,
+    pub wasted_space: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

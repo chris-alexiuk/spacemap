@@ -52,6 +52,46 @@ pub struct Cli {
     /// Custom age bucket boundaries (comma-separated days)
     #[arg(long, value_name = "SPEC")]
     pub age_buckets: Option<String>,
+
+    /// Disable progress indicator
+    #[arg(long)]
+    pub quiet: bool,
+
+    /// Enable parallel directory scanning for faster performance
+    #[arg(long)]
+    pub parallel: bool,
+
+    /// Number of threads for parallel scanning (0 = auto-detect)
+    #[arg(long, default_value = "0")]
+    pub threads: usize,
+
+    /// Find and report duplicate files
+    #[arg(long)]
+    pub find_duplicates: bool,
+
+    /// Compare two scan results (provide two JSON file paths)
+    #[arg(long, value_names = ["BEFORE", "AFTER"], num_args = 2)]
+    pub compare: Option<Vec<std::path::PathBuf>>,
+
+    /// Use cached scan results (skip unchanged directories)
+    #[arg(long)]
+    pub cached: bool,
+
+    /// Cache directory (default: ~/.cache/spacemap)
+    #[arg(long, value_name = "DIR")]
+    pub cache_dir: Option<std::path::PathBuf>,
+
+    /// Write checkpoint to file for resumable scans
+    #[arg(long, value_name = "FILE")]
+    pub checkpoint: Option<std::path::PathBuf>,
+
+    /// Resume from checkpoint file
+    #[arg(long, value_name = "FILE")]
+    pub resume: Option<std::path::PathBuf>,
+
+    /// Checkpoint interval in seconds (default: 300)
+    #[arg(long, default_value = "300")]
+    pub checkpoint_interval: u64,
 }
 
 impl Cli {

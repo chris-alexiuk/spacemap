@@ -1,5 +1,6 @@
 use crate::bounded_heap::BoundedMinHeap;
 use crate::categorize::Categorizer;
+use crate::path_pool::PathPool;
 use crate::types::{Bucket, DirEntry, FileEntry, FileMetadata};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -64,10 +65,15 @@ pub struct SinglePassCollector {
     // Top files tracking using bounded heap
     top_files_heap: BoundedMinHeap<FileWithSize>,
 
-    // Directory size accumulation: dir_path -> total_bytes
+    // Directory size accumulation: path_id -> total_bytes
+    // Using u32 path IDs instead of PathBuf for memory efficiency
     // Note: We need to accumulate ALL directory sizes to be accurate,
     // but we use a bounded heap for the final top-N selection
-    dir_accumulator: HashMap<PathBuf, u64>,
+    dir_accumulator: HashMap<u32, u64>,
+
+    // Path interning pool: stores unique paths once, returns u32 IDs
+    // This reduces memory usage for deep directory trees
+    path_pool: PathPool,
 
     // Capacity for top-N tracking
     top_n: usize,
@@ -89,6 +95,7 @@ impl SinglePassCollector {
             category_stats: HashMap::new(),
             top_files_heap: BoundedMinHeap::new(top_n),
             dir_accumulator: HashMap::new(),
+            path_pool: PathPool::new(),
             top_n,
             should_collect_tops,
         }
@@ -117,9 +124,10 @@ impl SinglePassCollector {
                 size,
             });
 
-            // 3. Accumulate directory sizes
+            // 3. Accumulate directory sizes using path interning
             if let Some(parent) = metadata.path.parent() {
-                *self.dir_accumulator.entry(parent.to_path_buf()).or_insert(0) += size;
+                let path_id = self.path_pool.intern(parent);
+                *self.dir_accumulator.entry(path_id).or_insert(0) += size;
             }
         }
     }
@@ -169,10 +177,17 @@ impl SinglePassCollector {
         };
 
         // Extract top directories using bounded heap
+        // Dereference path IDs back to paths using the path pool
         let top_dirs = if self.should_collect_tops {
             let mut dir_heap = BoundedMinHeap::new(self.top_n);
-            for (path, size) in self.dir_accumulator {
-                dir_heap.push(DirWithSize { path, size });
+            for (path_id, size) in self.dir_accumulator {
+                // Dereference path ID to actual path
+                if let Some(path) = self.path_pool.get(path_id) {
+                    dir_heap.push(DirWithSize {
+                        path: path.to_path_buf(),
+                        size
+                    });
+                }
             }
 
             dir_heap
