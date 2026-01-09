@@ -105,7 +105,7 @@ impl SinglePassCollector {
         let size = metadata.size;
 
         // 1. Categorize and aggregate
-        let category = self.categorizer.categorize(&metadata);
+        let category = self.categorizer.categorize(&metadata).into_owned();
         let entry = self.category_stats.entry(category).or_insert((0, 0));
         entry.0 += size;
         entry.1 += 1;

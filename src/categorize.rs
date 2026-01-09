@@ -1,9 +1,10 @@
 use crate::types::{Bucket, FileMetadata};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 pub trait Categorizer {
-    fn categorize(&self, metadata: &FileMetadata) -> String;
+    fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str>;
     fn get_label(&self, key: &str) -> String;
 }
 
@@ -36,12 +37,13 @@ impl TypeCategorizer {
 }
 
 impl Categorizer for TypeCategorizer {
-    fn categorize(&self, metadata: &FileMetadata) -> String {
-        metadata
+    fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str> {
+        let category = metadata
             .extension
             .as_ref()
-            .map(|ext| Self::map_extension_to_category(ext).to_string())
-            .unwrap_or_else(|| "Other".to_string())
+            .map(|ext| Self::map_extension_to_category(ext))
+            .unwrap_or("Other");
+        Cow::Borrowed(category)
     }
 
     fn get_label(&self, key: &str) -> String {
@@ -97,8 +99,8 @@ impl SizeCategorizer {
 }
 
 impl Categorizer for SizeCategorizer {
-    fn categorize(&self, metadata: &FileMetadata) -> String {
-        self.find_bucket(metadata.size).to_string()
+    fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str> {
+        Cow::Owned(self.find_bucket(metadata.size).to_string())
     }
 
     fn get_label(&self, key: &str) -> String {
@@ -159,14 +161,13 @@ impl AgeCategorizer {
 }
 
 impl Categorizer for AgeCategorizer {
-    fn categorize(&self, metadata: &FileMetadata) -> String {
-        metadata
-            .modified
-            .map(|modified| {
-                let days = Self::days_since_modified(modified);
-                self.find_bucket(days).to_string()
-            })
-            .unwrap_or_else(|| "Unknown".to_string())
+    fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str> {
+        if let Some(modified) = metadata.modified {
+            let days = Self::days_since_modified(modified);
+            Cow::Owned(self.find_bucket(days).to_string())
+        } else {
+            Cow::Borrowed("Unknown")
+        }
     }
 
     fn get_label(&self, key: &str) -> String {
@@ -182,7 +183,7 @@ pub fn aggregate_by_category<C: Categorizer>(
     let mut category_map: HashMap<String, (u64, u64)> = HashMap::new();
 
     for file in files {
-        let category = categorizer.categorize(&file);
+        let category = categorizer.categorize(&file).into_owned();
         let entry = category_map.entry(category).or_insert((0, 0));
         entry.0 += file.size;
         entry.1 += 1;
