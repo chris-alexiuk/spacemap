@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-01-09
+
+### Changed
+- Remove unused dependencies (chrono and dashmap) to reduce dependency bloat
+
+### Performance
+- Improve parallel mode performance from 1.4x to 4.8x speedup on large directories
+- Eliminate atomic operations in parallel scanner to reduce cache line contention
+- Fix parallel mode merge bottleneck by using PathBuf directly instead of path pool interning
+
 ## [1.0.3] - 2026-01-09
 
 ### Fixed
