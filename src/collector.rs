@@ -1,6 +1,5 @@
 use crate::bounded_heap::BoundedMinHeap;
 use crate::categorize::Categorizer;
-use crate::path_pool::PathPool;
 use crate::types::{Bucket, DirEntry, FileEntry, FileMetadata};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -65,15 +64,11 @@ pub struct SinglePassCollector {
     // Top files tracking using bounded heap
     top_files_heap: BoundedMinHeap<FileWithSize>,
 
-    // Directory size accumulation: path_id -> total_bytes
-    // Using u32 path IDs instead of PathBuf for memory efficiency
+    // Directory size accumulation: PathBuf -> total_bytes
     // Note: We need to accumulate ALL directory sizes to be accurate,
     // but we use a bounded heap for the final top-N selection
-    dir_accumulator: HashMap<u32, u64>,
-
-    // Path interning pool: stores unique paths once, returns u32 IDs
-    // This reduces memory usage for deep directory trees
-    path_pool: PathPool,
+    // Using PathBuf directly (not u32 IDs) for better parallel merge performance
+    dir_accumulator: HashMap<PathBuf, u64>,
 
     // Capacity for top-N tracking
     top_n: usize,
@@ -95,7 +90,6 @@ impl SinglePassCollector {
             category_stats: HashMap::new(),
             top_files_heap: BoundedMinHeap::new(top_n),
             dir_accumulator: HashMap::new(),
-            path_pool: PathPool::new(),
             top_n,
             should_collect_tops,
         }
@@ -124,10 +118,9 @@ impl SinglePassCollector {
                 size,
             });
 
-            // 3. Accumulate directory sizes using path interning
+            // 3. Accumulate directory sizes
             if let Some(parent) = metadata.path.parent() {
-                let path_id = self.path_pool.intern(parent);
-                *self.dir_accumulator.entry(path_id).or_insert(0) += size;
+                *self.dir_accumulator.entry(parent.to_path_buf()).or_insert(0) += size;
             }
         }
     }
@@ -152,13 +145,9 @@ impl SinglePassCollector {
             self.top_files_heap.push(file);
         }
 
-        // Merge directory accumulator - need to remap path IDs
-        // Since path pools are separate, we intern all paths from other into self
-        for (other_path_id, size) in other.dir_accumulator {
-            if let Some(path) = other.path_pool.get(other_path_id) {
-                let self_path_id = self.path_pool.intern(path);
-                *self.dir_accumulator.entry(self_path_id).or_insert(0) += size;
-            }
+        // Merge directory accumulator - direct HashMap merge
+        for (path, size) in other.dir_accumulator {
+            *self.dir_accumulator.entry(path).or_insert(0) += size;
         }
     }
 
@@ -201,17 +190,10 @@ impl SinglePassCollector {
         };
 
         // Extract top directories using bounded heap
-        // Dereference path IDs back to paths using the path pool
         let top_dirs = if self.should_collect_tops {
             let mut dir_heap = BoundedMinHeap::new(self.top_n);
-            for (path_id, size) in self.dir_accumulator {
-                // Dereference path ID to actual path
-                if let Some(path) = self.path_pool.get(path_id) {
-                    dir_heap.push(DirWithSize {
-                        path: path.to_path_buf(),
-                        size
-                    });
-                }
+            for (path, size) in self.dir_accumulator {
+                dir_heap.push(DirWithSize { path, size });
             }
 
             dir_heap
