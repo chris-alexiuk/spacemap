@@ -60,6 +60,7 @@ impl ParallelScanner {
         // Configure jwalk for parallel walking
         let mut walker = WalkDir::new(path)
             .follow_links(self.follow_symlinks)
+            .skip_hidden(false)  // CRITICAL: Match walkdir behavior - scan hidden files!
             .parallelism(jwalk::Parallelism::RayonNewPool(self.num_threads));
 
         if let Some(depth) = self.max_depth {
