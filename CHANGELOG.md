@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-01-10
+
+### Added
+- **TOML configuration support** - Configure spacemap via `~/.config/spacemap/config.toml`
+- **Custom file type categories** - Define entirely new categories with custom extensions (e.g., "ML Models" for .pt, .onnx, .h5 files)
+- **Extension remapping** - Reassign existing extensions to different categories
+- **Color customization** with priority system:
+  - Per-extension colors (highest priority) - e.g., .rs → red, .py → green
+  - Per-category colors - e.g., all "Code" files → cyan
+  - Percentage-based fallback (default behavior)
+- **CLI flag `--config <path>`** - Override default config location
+- Representative extension tracking - Most common extension per category used for color resolution
+
+### Changed
+- TypeCategorizer now uses HashMap-based approach instead of static match statements
+- Bucket struct includes optional `color` and `representative_extension` fields
+- Collector tracks extension frequencies per category for accurate color resolution
+
+### Technical Details
+- Config format: TOML (using `toml = "0.8"` crate)
+- Config location: `~/.config/spacemap/config.toml` (XDG standard, cross-platform via `dirs = "5.0"`)
+- Error handling: Clear error messages for invalid config files
+- Backward compatibility: 100% compatible - works identically without config file
+
+### Example Config
+```toml
+# Custom categories
+[[categories]]
+name = "ML Models"
+extensions = ["pt", "onnx", "h5", "pb", "keras"]
+color = "magenta"
+
+# Extension remapping
+[[remaps]]
+extensions = ["md", "txt"]
+category = "Documentation"
+
+# Category-level colors
+[category_colors]
+"Code" = "cyan"
+"Images" = "blue"
+
+# Per-extension colors (overrides category)
+[extension_colors]
+"rs" = "red"
+"py" = "green"
+"js" = "yellow"
+
+# Display settings
+[display]
+use_percentage_colors = false  # Disable percentage-based coloring
+```
+
 ## [1.0.7] - 2026-01-09
 
 ### Changed
@@ -79,6 +132,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Top-N collection: O(N log N) → O(N log K) where K is typically 10-20
 - Memory: O(N) → O(K) for top-N tracking
 
+[1.1.0]: https://github.com/chris-alexiuk/spacemap/releases/tag/v1.1.0
+[1.0.7]: https://github.com/chris-alexiuk/spacemap/releases/tag/v1.0.7
 [1.0.3]: https://github.com/chris-alexiuk/spacemap/releases/tag/v1.0.3
 [1.0.2]: https://github.com/chris-alexiuk/spacemap/releases/tag/v1.0.2
 [1.0.1]: https://github.com/chris-alexiuk/spacemap/releases/tag/v1.0.1

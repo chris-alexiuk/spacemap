@@ -1,5 +1,7 @@
 use crate::types::FileMetadata;
+use crate::config::SpacemapConfig;
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 pub trait Categorizer: Send + Sync {
@@ -8,46 +10,127 @@ pub trait Categorizer: Send + Sync {
     fn clone_box(&self) -> Box<dyn Categorizer>;
 }
 
-pub struct TypeCategorizer;
+pub struct TypeCategorizer {
+    extension_map: HashMap<String, String>,
+}
 
 impl TypeCategorizer {
     pub fn new() -> Self {
-        Self
+        Self::with_config(None)
     }
 
-    fn map_extension_to_category(ext: &str) -> &'static str {
-        match ext {
-            "jpg" | "jpeg" | "png" | "gif" | "bmp" | "svg" | "webp" | "ico" | "heic" | "heif" => "Images",
-            "mp4" | "avi" | "mkv" | "mov" | "wmv" | "flv" | "webm" | "m4v" | "mpg" | "mpeg" => "Videos",
-            "mp3" | "wav" | "flac" | "aac" | "ogg" | "m4a" | "wma" | "opus" => "Audio",
-            "pdf" | "doc" | "docx" | "txt" | "odt" | "rtf" | "tex" | "md" => "Documents",
-            "xls" | "xlsx" | "csv" | "ods" => "Spreadsheets",
-            "ppt" | "pptx" | "odp" => "Presentations",
-            "zip" | "tar" | "gz" | "bz2" | "7z" | "rar" | "xz" | "zst" | "tgz" => "Archives",
-            "rs" | "py" | "js" | "ts" | "java" | "c" | "cpp" | "h" | "hpp" | "go" | "rb" | "php" | "swift" | "kt" => "Code",
-            "json" | "xml" | "yaml" | "yml" | "toml" | "ini" | "conf" | "cfg" => "Config",
-            "exe" | "dll" | "so" | "dylib" | "bin" | "app" | "deb" | "rpm" => "Binaries",
-            "iso" | "img" | "dmg" | "vdi" | "vmdk" => "Disk Images",
-            "db" | "sqlite" | "sql" | "mdb" => "Databases",
-            "log" => "Logs",
-            "ttf" | "otf" | "woff" | "woff2" => "Fonts",
-            _ => "Other",
+    pub fn with_config(config: Option<&SpacemapConfig>) -> Self {
+        let mut extension_map = Self::build_default_map();
+
+        if let Some(cfg) = config {
+            // Apply custom categories
+            for category in &cfg.categories {
+                for ext in &category.extensions {
+                    extension_map.insert(ext.to_lowercase(), category.name.clone());
+                }
+            }
+
+            // Apply remaps (override existing mappings)
+            for remap in &cfg.remaps {
+                for ext in &remap.extensions {
+                    extension_map.insert(ext.to_lowercase(), remap.category.clone());
+                }
+            }
         }
+
+        Self { extension_map }
+    }
+
+    fn build_default_map() -> HashMap<String, String> {
+        let mut map = HashMap::new();
+
+        // Images
+        for ext in ["jpg", "jpeg", "png", "gif", "bmp", "svg", "webp", "ico", "heic", "heif"] {
+            map.insert(ext.to_string(), "Images".to_string());
+        }
+
+        // Videos
+        for ext in ["mp4", "avi", "mkv", "mov", "wmv", "flv", "webm", "m4v", "mpg", "mpeg"] {
+            map.insert(ext.to_string(), "Videos".to_string());
+        }
+
+        // Audio
+        for ext in ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "opus"] {
+            map.insert(ext.to_string(), "Audio".to_string());
+        }
+
+        // Documents
+        for ext in ["pdf", "doc", "docx", "txt", "odt", "rtf", "tex", "md"] {
+            map.insert(ext.to_string(), "Documents".to_string());
+        }
+
+        // Spreadsheets
+        for ext in ["xls", "xlsx", "csv", "ods"] {
+            map.insert(ext.to_string(), "Spreadsheets".to_string());
+        }
+
+        // Presentations
+        for ext in ["ppt", "pptx", "odp"] {
+            map.insert(ext.to_string(), "Presentations".to_string());
+        }
+
+        // Archives
+        for ext in ["zip", "tar", "gz", "bz2", "7z", "rar", "xz", "zst", "tgz"] {
+            map.insert(ext.to_string(), "Archives".to_string());
+        }
+
+        // Code
+        for ext in ["rs", "py", "js", "ts", "java", "c", "cpp", "h", "hpp", "go", "rb", "php", "swift", "kt"] {
+            map.insert(ext.to_string(), "Code".to_string());
+        }
+
+        // Config
+        for ext in ["json", "xml", "yaml", "yml", "toml", "ini", "conf", "cfg"] {
+            map.insert(ext.to_string(), "Config".to_string());
+        }
+
+        // Binaries
+        for ext in ["exe", "dll", "so", "dylib", "bin", "app", "deb", "rpm"] {
+            map.insert(ext.to_string(), "Binaries".to_string());
+        }
+
+        // Disk Images
+        for ext in ["iso", "img", "dmg", "vdi", "vmdk"] {
+            map.insert(ext.to_string(), "Disk Images".to_string());
+        }
+
+        // Databases
+        for ext in ["db", "sqlite", "sql", "mdb"] {
+            map.insert(ext.to_string(), "Databases".to_string());
+        }
+
+        // Logs
+        map.insert("log".to_string(), "Logs".to_string());
+
+        // Fonts
+        for ext in ["ttf", "otf", "woff", "woff2"] {
+            map.insert(ext.to_string(), "Fonts".to_string());
+        }
+
+        map
     }
 }
 
 impl Categorizer for TypeCategorizer {
     fn clone_box(&self) -> Box<dyn Categorizer> {
-        Box::new(TypeCategorizer)
+        Box::new(TypeCategorizer {
+            extension_map: self.extension_map.clone(),
+        })
     }
 
     fn categorize(&self, metadata: &FileMetadata) -> Cow<'static, str> {
         let category = metadata
             .extension
             .as_ref()
-            .map(|ext| Self::map_extension_to_category(ext))
+            .and_then(|ext| self.extension_map.get(ext))
+            .map(|s| s.as_str())
             .unwrap_or("Other");
-        Cow::Borrowed(category)
+        Cow::Owned(category.to_string())
     }
 
     fn get_label(&self, key: &str) -> String {

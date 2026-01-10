@@ -92,6 +92,10 @@ pub struct Cli {
     /// Checkpoint interval in seconds (default: 300)
     #[arg(long, default_value = "300")]
     pub checkpoint_interval: u64,
+
+    /// Path to config file (default: ~/.config/spacemap/config.toml)
+    #[arg(long, value_name = "FILE")]
+    pub config: Option<PathBuf>,
 }
 
 impl Cli {

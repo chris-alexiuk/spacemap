@@ -1,3 +1,4 @@
+use crate::config::{ColorResolver, SpacemapConfig};
 use crate::types::{Bucket, DirEntry, FileEntry, ScanResults, Warning};
 use colored::*;
 use humansize::{format_size, BINARY};
@@ -6,11 +7,21 @@ use std::io;
 pub struct TerminalRenderer {
     use_color: bool,
     verbose: bool,
+    color_resolver: Option<ColorResolver>,
 }
 
 impl TerminalRenderer {
     pub fn new(use_color: bool, verbose: bool) -> Self {
-        Self { use_color, verbose }
+        Self::with_config(use_color, verbose, None)
+    }
+
+    pub fn with_config(use_color: bool, verbose: bool, config: Option<&SpacemapConfig>) -> Self {
+        let color_resolver = config.map(|c| ColorResolver::new(c.clone()));
+        Self {
+            use_color,
+            verbose,
+            color_resolver,
+        }
     }
 
     pub fn render(&self, results: &ScanResults) {
@@ -134,19 +145,28 @@ impl TerminalRenderer {
             let size_str = format_size(bucket.bytes, BINARY);
             let pct_str = format!("{:.1}%", bucket.percent);
 
-            // Determine row color based on percentage
-            let (name_color, bold) = if bucket.percent > 50.0 {
-                ("red", true)
-            } else if bucket.percent > 20.0 {
-                ("yellow", true)
-            } else if bucket.percent > 10.0 {
-                ("yellow", false)
+            // Determine row color - use ColorResolver if available, otherwise fallback to percentage
+            let (name_color, bold) = if let Some(ref resolver) = self.color_resolver {
+                let color = resolver
+                    .resolve_bucket_color(bucket, bucket.representative_extension.as_deref())
+                    .unwrap_or_else(|| "white".to_string());
+                let bold = bucket.percent > 20.0;
+                (color, bold)
             } else {
-                ("white", false)
+                // Fallback to old percentage-based logic when no config
+                if bucket.percent > 50.0 {
+                    ("red".to_string(), true)
+                } else if bucket.percent > 20.0 {
+                    ("yellow".to_string(), true)
+                } else if bucket.percent > 10.0 {
+                    ("yellow".to_string(), false)
+                } else {
+                    ("white".to_string(), false)
+                }
             };
 
             // Build the bar
-            let bar = self.make_bar(bucket.percent, bar_w);
+            let bar = self.make_bar(bucket, bar_w);
 
             // Print without color first to get alignment right, then apply colors
             if self.use_color {
@@ -157,7 +177,7 @@ impl TerminalRenderer {
 
                 println!(
                     "  {}{}{}{}  {}",
-                    self.style(&name_col, name_color, bold),
+                    self.style(&name_col, &name_color, bold),
                     self.style(&size_col, "green", true),
                     self.style(&pct_col, "magenta", false),
                     self.style(&files_col, "cyan", false),
@@ -180,8 +200,8 @@ impl TerminalRenderer {
         }
     }
 
-    fn make_bar(&self, percent: f64, width: usize) -> String {
-        let filled = ((percent / 100.0) * width as f64).round() as usize;
+    fn make_bar(&self, bucket: &Bucket, width: usize) -> String {
+        let filled = ((bucket.percent / 100.0) * width as f64).round() as usize;
         let filled = filled.min(width);
         let empty = width - filled;
 
@@ -191,16 +211,32 @@ impl TerminalRenderer {
 
         let mut bar = String::new();
 
-        // Color the filled portion based on the overall percentage
-        let fill_color = if percent > 50.0 {
-            "red"
-        } else if percent > 20.0 {
-            "yellow"
+        // Color the filled portion - use ColorResolver if available
+        let fill_color = if let Some(ref resolver) = self.color_resolver {
+            resolver
+                .resolve_bucket_color(bucket, bucket.representative_extension.as_deref())
+                .unwrap_or_else(|| {
+                    // Fallback to percentage-based coloring
+                    if bucket.percent > 50.0 {
+                        "red".to_string()
+                    } else if bucket.percent > 20.0 {
+                        "yellow".to_string()
+                    } else {
+                        "green".to_string()
+                    }
+                })
         } else {
-            "green"
+            // Fallback to old percentage-based logic when no config
+            if bucket.percent > 50.0 {
+                "red".to_string()
+            } else if bucket.percent > 20.0 {
+                "yellow".to_string()
+            } else {
+                "green".to_string()
+            }
         };
 
-        bar.push_str(&self.style(&"█".repeat(filled), fill_color, false));
+        bar.push_str(&self.style(&"█".repeat(filled), &fill_color, false));
         bar.push_str(&self.style(&"░".repeat(empty), "bright_black", false));
         bar
     }

@@ -5,6 +5,7 @@ mod checkpoint;
 mod cli;
 mod collector;
 mod compare;
+mod config;
 mod duplicates;
 mod output;
 mod parallel_scanner;
@@ -30,6 +31,21 @@ use types::{DiskUsage, ScanResults, Totals};
 
 fn main() {
     let cli = Cli::parse();
+
+    // Load configuration early
+    let config = match config::SpacemapConfig::load(cli.config.as_ref()) {
+        Ok(cfg) => Some(cfg),
+        Err(e) => {
+            if cli.config.is_some() {
+                // User specified a config, so fail if it can't load
+                eprintln!("Error loading config: {}", e);
+                std::process::exit(2);
+            } else {
+                // No config or default doesn't exist - use defaults silently
+                None
+            }
+        }
+    };
 
     // Handle comparison mode
     if let Some(ref compare_paths) = cli.compare {
@@ -129,7 +145,7 @@ fn main() {
 
     // Create categorizer based on mode
     let categorizer: Box<dyn categorize::Categorizer> = match cli.by.as_str() {
-        "type" => Box::new(TypeCategorizer::new()),
+        "type" => Box::new(TypeCategorizer::with_config(config.as_ref())),
         "size" => {
             let custom_buckets = cli.size_buckets.as_ref().and_then(|s| parse_size_buckets(s));
             Box::new(SizeCategorizer::new(custom_buckets))
@@ -286,7 +302,7 @@ fn main() {
         }
     } else {
         let use_color = !cli.no_color && std::io::IsTerminal::is_terminal(&std::io::stdout());
-        let renderer = TerminalRenderer::new(use_color, cli.verbose);
+        let renderer = TerminalRenderer::with_config(use_color, cli.verbose, config.as_ref());
         renderer.render(&results);
     }
 

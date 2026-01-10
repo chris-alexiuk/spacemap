@@ -61,6 +61,9 @@ pub struct SinglePassCollector {
     // Category aggregation: category -> (total_bytes, file_count)
     category_stats: HashMap<String, (u64, u64)>,
 
+    // Extension tracking per category: category -> (extension -> count)
+    category_extensions: HashMap<String, HashMap<String, u64>>,
+
     // Top files tracking using bounded heap
     top_files_heap: BoundedMinHeap<FileWithSize>,
 
@@ -88,6 +91,7 @@ impl SinglePassCollector {
         Self {
             categorizer,
             category_stats: HashMap::new(),
+            category_extensions: HashMap::new(),
             top_files_heap: BoundedMinHeap::new(top_n),
             dir_accumulator: HashMap::new(),
             top_n,
@@ -107,9 +111,15 @@ impl SinglePassCollector {
 
         // 1. Categorize and aggregate
         let category = self.categorizer.categorize(&metadata).into_owned();
-        let entry = self.category_stats.entry(category).or_insert((0, 0));
+        let entry = self.category_stats.entry(category.clone()).or_insert((0, 0));
         entry.0 += size;
         entry.1 += 1;
+
+        // Track extensions for this category
+        if let Some(ref ext) = metadata.extension {
+            let ext_map = self.category_extensions.entry(category.clone()).or_insert_with(HashMap::new);
+            *ext_map.entry(ext.clone()).or_insert(0) += 1;
+        }
 
         if self.should_collect_tops {
             // 2. Track top files
@@ -140,6 +150,14 @@ impl SinglePassCollector {
             entry.1 += count;
         }
 
+        // Merge category extensions
+        for (category, ext_map) in other.category_extensions {
+            let target_ext_map = self.category_extensions.entry(category).or_insert_with(HashMap::new);
+            for (ext, count) in ext_map {
+                *target_ext_map.entry(ext).or_insert(0) += count;
+            }
+        }
+
         // Merge top files heap
         for file in other.top_files_heap.into_sorted_vec() {
             self.top_files_heap.push(file);
@@ -163,12 +181,22 @@ impl SinglePassCollector {
                     0.0
                 };
 
+                // Find most common extension for this category
+                let representative_extension = self.category_extensions.get(&key)
+                    .and_then(|ext_map| {
+                        ext_map.iter()
+                            .max_by_key(|(_, &count)| count)
+                            .map(|(ext, _)| ext.clone())
+                    });
+
                 Bucket {
                     label: self.categorizer.get_label(&key),
                     key,
                     bytes,
                     percent,
                     file_count: count,
+                    color: None,
+                    representative_extension,
                 }
             })
             .collect();

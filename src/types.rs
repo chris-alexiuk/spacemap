@@ -46,6 +46,10 @@ pub struct Bucket {
     pub bytes: u64,
     pub percent: f64,
     pub file_count: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub representative_extension: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
